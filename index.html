@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Plane Simulator</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: "Courier New", monospace;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="src/utils/physics.js"></script>
+    <script src="src/models/bullet.js"></script>
+    <script src="src/models/enemy.js"></script>
+    <script src="src/models/building.js"></script>
+    <script src="src/models/plane.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const simulator = new PlaneSimulator();
+        });
+    </script>
+    <script src="src/main.js"></script>
+</body>
+</html> 
