@@ -1,6 +1,22 @@
 class PlaneSimulator {
     constructor() {
         console.log('Initializing PlaneSimulator');
+
+        // Add mobile detection first
+        this.isMobile = ('ontouchstart' in window) || 
+                       (navigator.maxTouchPoints > 0) || 
+                       (navigator.msMaxTouchPoints > 0);
+        console.log('Is Mobile:', this.isMobile);
+
+        // Touch control state
+        this.touchControl = {
+            active: false,
+            startX: 0,
+            startY: 0,
+            currentX: 0,
+            currentY: 0
+        };
+
         // Initialize arrays first
         this.buildings = [];
         this.enemies = [];
@@ -75,22 +91,6 @@ class PlaneSimulator {
             shootMissile: false
         };
 
-        // More robust mobile detection
-        this.isMobile = ('ontouchstart' in window) || 
-                       (navigator.maxTouchPoints > 0) || 
-                       (navigator.msMaxTouchPoints > 0);
-
-        console.log('Is Mobile:', this.isMobile); // Debug log
-
-        // Touch control state
-        this.touchControl = {
-            active: false,
-            startX: 0,
-            startY: 0,
-            currentX: 0,
-            currentY: 0
-        };
-
         // Set up controls based on device
         this.setupControls();
 
@@ -129,15 +129,10 @@ class PlaneSimulator {
 
     setupControls() {
         if (this.isMobile) {
-            console.log('Setting up mobile controls'); // Debug log
+            console.log('Setting up mobile controls');
             
-            // Prevent default touch behaviors
-            document.addEventListener('touchmove', (e) => {
-                e.preventDefault();
-            }, { passive: false });
-
-            // Touch controls
-            this.renderer.domElement.addEventListener('touchstart', (e) => {
+            // Add touch handlers to document instead of canvas
+            document.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 const touch = e.touches[0];
                 this.touchControl.active = true;
@@ -147,14 +142,14 @@ class PlaneSimulator {
                 this.touchControl.currentY = touch.clientY;
             }, { passive: false });
 
-            this.renderer.domElement.addEventListener('touchmove', (e) => {
+            document.addEventListener('touchmove', (e) => {
                 e.preventDefault();
                 const touch = e.touches[0];
                 this.touchControl.currentX = touch.clientX;
                 this.touchControl.currentY = touch.clientY;
             }, { passive: false });
 
-            this.renderer.domElement.addEventListener('touchend', () => {
+            document.addEventListener('touchend', () => {
                 this.touchControl.active = false;
                 // Reset controls when touch ends
                 this.input.turnLeft = false;
@@ -162,6 +157,9 @@ class PlaneSimulator {
                 this.input.pitchUp = false;
                 this.input.pitchDown = false;
             });
+
+            // Prevent default touch behaviors on the whole document
+            document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
         } else {
             // Existing keyboard controls
             document.addEventListener('keydown', (e) => {
@@ -205,12 +203,16 @@ class PlaneSimulator {
         const dx = this.touchControl.currentX - this.touchControl.startX;
         const dy = this.touchControl.currentY - this.touchControl.startY;
 
-        // More sensitive touch controls
-        const sensitivity = 10; // Adjust this value to make controls more/less sensitive
+        // More sensitive touch controls with smaller threshold
+        const sensitivity = 5; // Reduced from 10 to 5
         this.input.turnLeft = dx < -sensitivity;
         this.input.turnRight = dx > sensitivity;
         this.input.pitchUp = dy < -sensitivity;
         this.input.pitchDown = dy > sensitivity;
+
+        // Update start position for smoother control
+        this.touchControl.startX = this.touchControl.currentX;
+        this.touchControl.startY = this.touchControl.currentY;
     }
 
     updateHUD() {
@@ -249,6 +251,10 @@ SPACE - Fire`;
         // Update mobile controls if needed
         if (this.isMobile) {
             this.updateMobileControls();
+            // Debug log first few frames
+            if (currentTime < 1000) {
+                console.log('Mobile controls active:', this.touchControl.active);
+            }
         }
 
         // Update airplane
@@ -957,6 +963,7 @@ SPACE - Fire`;
     }
 
     startGame() {
+        console.log('Starting game, mobile:', this.isMobile);
         // Remove start screen
         document.querySelectorAll('div').forEach(div => {
             if (div.id !== 'hud') {
