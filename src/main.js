@@ -75,7 +75,19 @@ class PlaneSimulator {
             shootMissile: false
         };
 
-        // Set up controls
+        // Add mobile detection
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // Touch control state
+        this.touchControl = {
+            active: false,
+            startX: 0,
+            startY: 0,
+            currentX: 0,
+            currentY: 0
+        };
+
+        // Set up controls based on device
         this.setupControls();
 
         // Start game loop
@@ -112,41 +124,91 @@ class PlaneSimulator {
     }
 
     setupControls() {
-        document.addEventListener('keydown', (e) => {
-            switch(e.key.toLowerCase()) {  // Handle both upper and lower case
-                case 'e': this.input.throttleUp = true; break;
-                case 'q': this.input.throttleDown = true; break;
-                case 'w': this.input.pitchUp = true; break;
-                case 's': this.input.pitchDown = true; break;
-                case 'a': this.input.turnLeft = true; break;
-                case 'd': this.input.turnRight = true; break;
-                case ' ': this.input.shootMissile = true; break;
-                case 'b': this.triggerMegaBomb(); break;  // Secret bomb key
-            }
-        });
+        if (this.isMobile) {
+            // Touch controls
+            document.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.touchControl.active = true;
+                this.touchControl.startX = touch.clientX;
+                this.touchControl.startY = touch.clientY;
+                this.touchControl.currentX = touch.clientX;
+                this.touchControl.currentY = touch.clientY;
+            });
 
-        document.addEventListener('keyup', (e) => {
-            switch(e.key.toLowerCase()) {  // Add toLowerCase() here too
-                case 'e': this.input.throttleUp = false; break;
-                case 'q': this.input.throttleDown = false; break;
-                case 'w': this.input.pitchUp = false; break;
-                case 's': this.input.pitchDown = false; break;
-                case 'a': this.input.turnLeft = false; break;
-                case 'd': this.input.turnRight = false; break;
-                case ' ': this.input.shootMissile = false; break;
-            }
-        });
+            document.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.touchControl.currentX = touch.clientX;
+                this.touchControl.currentY = touch.clientY;
+            });
+
+            document.addEventListener('touchend', () => {
+                this.touchControl.active = false;
+            });
+        } else {
+            // Existing keyboard controls
+            document.addEventListener('keydown', (e) => {
+                switch(e.key.toLowerCase()) {
+                    case 'e': this.input.throttleUp = true; break;
+                    case 'q': this.input.throttleDown = true; break;
+                    case 'w': this.input.pitchUp = true; break;
+                    case 's': this.input.pitchDown = true; break;
+                    case 'a': this.input.turnLeft = true; break;
+                    case 'd': this.input.turnRight = true; break;
+                    case ' ': this.input.shootMissile = true; break;
+                    case 'b': this.triggerMegaBomb(); break;
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                switch(e.key.toLowerCase()) {
+                    case 'e': this.input.throttleUp = false; break;
+                    case 'q': this.input.throttleDown = false; break;
+                    case 'w': this.input.pitchUp = false; break;
+                    case 's': this.input.pitchDown = false; break;
+                    case 'a': this.input.turnLeft = false; break;
+                    case 'd': this.input.turnRight = false; break;
+                    case ' ': this.input.shootMissile = false; break;
+                }
+            });
+        }
+    }
+
+    updateMobileControls() {
+        if (!this.isMobile || !this.touchControl.active) return;
+
+        // Calculate drag distances
+        const dx = this.touchControl.currentX - this.touchControl.startX;
+        const dy = this.touchControl.currentY - this.touchControl.startY;
+
+        // Convert drag to control inputs
+        this.input.turnLeft = dx < -20;
+        this.input.turnRight = dx > 20;
+        this.input.pitchUp = dy < -20;
+        this.input.pitchDown = dy > 20;
+
+        // Auto-throttle and auto-fire for mobile
+        this.input.throttleUp = true;
+        this.input.throttleDown = false;
+        this.input.shootMissile = true;
     }
 
     updateHUD() {
         const hud = document.getElementById('hud');
-        hud.innerHTML = `Score: ${this.score}
+        if (this.isMobile) {
+            hud.innerHTML = `Score: ${this.score}
+
+Touch and drag to steer`;
+        } else {
+            hud.innerHTML = `Score: ${this.score}
 
 Controls:
 W/S - Pitch
 A/D - Turn
 Q/E - Speed
 SPACE - Fire`;
+        }
     }
 
     animate(currentTime = 0) {
@@ -162,6 +224,11 @@ SPACE - Fire`;
 
         const deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.1);
         this.lastTime = currentTime;
+
+        // Update mobile controls if needed
+        if (this.isMobile) {
+            this.updateMobileControls();
+        }
 
         // Update airplane
         this.airplane.control(this.input);
