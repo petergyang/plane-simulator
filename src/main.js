@@ -183,11 +183,11 @@ class PlaneSimulator {
     updateMobileControls() {
         if (!this.isMobile) return;
 
-        // Set constant speed (same as desktop default)
+        // Set constant speed and auto-fire
         this.airplane.velocity = 100;
-        
-        // Always auto-fire on mobile
         this.input.shootMissile = true;
+        this.input.throttleUp = false;
+        this.input.throttleDown = false;
 
         if (!this.touchControl.active) {
             // Reset steering controls when not touching
@@ -198,36 +198,33 @@ class PlaneSimulator {
             return;
         }
 
-        // Calculate drag distances
-        const dx = this.touchControl.currentX - this.touchControl.startX;
-        const dy = this.touchControl.currentY - this.touchControl.startY;
+        // Get screen dimensions
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
 
-        // More responsive touch controls
-        const sensitivity = 1; // Increased sensitivity (was 2)
-        
-        // Use relative movement for smoother control
-        this.input.turnLeft = dx < -sensitivity;
-        this.input.turnRight = dx > sensitivity;
-        this.input.pitchUp = dy < -sensitivity;
-        this.input.pitchDown = dy > sensitivity;
+        // Define screen regions (in percentages)
+        const leftRegion = screenWidth * 0.3;
+        const rightRegion = screenWidth * 0.7;
+        const topRegion = screenHeight * 0.3;
+        const bottomRegion = screenHeight * 0.7;
 
-        // Update reference position for next frame
-        this.touchControl.startX = this.touchControl.currentX;
-        this.touchControl.startY = this.touchControl.currentY;
+        // Get current touch position
+        const touchX = this.touchControl.currentX;
+        const touchY = this.touchControl.currentY;
 
-        // Don't use throttle controls on mobile
-        this.input.throttleUp = false;
-        this.input.throttleDown = false;
+        // Set controls based on touch position
+        this.input.turnLeft = touchX < leftRegion;
+        this.input.turnRight = touchX > rightRegion;
+        this.input.pitchUp = touchY < topRegion;
+        this.input.pitchDown = touchY > bottomRegion;
     }
 
     updateHUD() {
         const hud = document.getElementById('hud');
         if (this.isMobile) {
-            hud.innerHTML = `Score: ${this.score}
-
-Touch and drag anywhere to steer
-Auto-firing enabled`;
-            hud.style.fontSize = '24px'; // Larger text for mobile
+            hud.innerHTML = `Score: ${this.score}`;
+            hud.style.fontSize = '32px'; // Make score bigger on mobile
+            hud.style.padding = '15px 20px'; // Larger padding for better touch
         } else {
             hud.innerHTML = `Score: ${this.score}
 
@@ -922,36 +919,45 @@ SPACE - Fire`;
             font-family: Arial, sans-serif;
             z-index: 1000;
             text-align: center;
-            padding: 20px;
+            padding: ${this.isMobile ? '10px' : '20px'};
         `;
 
         const title = document.createElement('h1');
         title.textContent = "City Under Attack!";
-        title.style.fontSize = '48px';
-        title.style.marginBottom = '20px';
-        title.style.color = '#ff3333';
+        title.style.cssText = `
+            font-size: ${this.isMobile ? '36px' : '48px'};
+            margin-bottom: ${this.isMobile ? '15px' : '20px'};
+            color: #ff3333;
+            padding: 0 10px;
+        `;
 
         const story = document.createElement('p');
-        story.innerHTML = `Mysterious red aircraft have appeared over the city, threatening our safety and way of life. 
+        if (this.isMobile) {
+            story.innerHTML = `Destroy all 10 enemy aircraft while protecting civilian buildings.`;
+        } else {
+            story.innerHTML = `Mysterious red aircraft have appeared over the city, threatening our safety and way of life. 
                           As the city's lone defender, you must destroy all 10 enemy aircraft while minimizing damage to civilian buildings.`;
+        }
         story.style.cssText = `
-            font-size: 24px;
-            margin-bottom: 40px;
-            max-width: 800px;
+            font-size: ${this.isMobile ? '20px' : '24px'};
+            margin-bottom: ${this.isMobile ? '30px' : '40px'};
+            max-width: ${this.isMobile ? '300px' : '800px'};
             line-height: 1.5;
+            padding: 0 20px;
         `;
 
         const startButton = document.createElement('button');
-        startButton.textContent = 'Start Mission';
+        startButton.textContent = this.isMobile ? 'Start' : 'Start Mission';
         startButton.style.cssText = `
-            padding: 15px 30px;
-            font-size: 24px;
+            padding: ${this.isMobile ? '12px 24px' : '15px 30px'};
+            font-size: ${this.isMobile ? '20px' : '24px'};
             background: #ff3333;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             transition: background 0.3s;
+            -webkit-tap-highlight-color: transparent;
         `;
         startButton.onmouseover = () => startButton.style.background = '#ff4444';
         startButton.onmouseout = () => startButton.style.background = '#ff3333';
