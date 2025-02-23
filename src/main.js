@@ -75,9 +75,13 @@ class PlaneSimulator {
             shootMissile: false
         };
 
-        // Add mobile detection
-        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
+        // More robust mobile detection
+        this.isMobile = ('ontouchstart' in window) || 
+                       (navigator.maxTouchPoints > 0) || 
+                       (navigator.msMaxTouchPoints > 0);
+
+        console.log('Is Mobile:', this.isMobile); // Debug log
+
         // Touch control state
         this.touchControl = {
             active: false,
@@ -125,8 +129,15 @@ class PlaneSimulator {
 
     setupControls() {
         if (this.isMobile) {
+            console.log('Setting up mobile controls'); // Debug log
+            
+            // Prevent default touch behaviors
+            document.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+            }, { passive: false });
+
             // Touch controls
-            document.addEventListener('touchstart', (e) => {
+            this.renderer.domElement.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 const touch = e.touches[0];
                 this.touchControl.active = true;
@@ -134,17 +145,22 @@ class PlaneSimulator {
                 this.touchControl.startY = touch.clientY;
                 this.touchControl.currentX = touch.clientX;
                 this.touchControl.currentY = touch.clientY;
-            });
+            }, { passive: false });
 
-            document.addEventListener('touchmove', (e) => {
+            this.renderer.domElement.addEventListener('touchmove', (e) => {
                 e.preventDefault();
                 const touch = e.touches[0];
                 this.touchControl.currentX = touch.clientX;
                 this.touchControl.currentY = touch.clientY;
-            });
+            }, { passive: false });
 
-            document.addEventListener('touchend', () => {
+            this.renderer.domElement.addEventListener('touchend', () => {
                 this.touchControl.active = false;
+                // Reset controls when touch ends
+                this.input.turnLeft = false;
+                this.input.turnRight = false;
+                this.input.pitchUp = false;
+                this.input.pitchDown = false;
             });
         } else {
             // Existing keyboard controls
@@ -176,22 +192,25 @@ class PlaneSimulator {
     }
 
     updateMobileControls() {
-        if (!this.isMobile || !this.touchControl.active) return;
+        if (!this.isMobile) return;
+
+        // Always auto-fire and maintain speed on mobile
+        this.input.throttleUp = true;
+        this.input.throttleDown = false;
+        this.input.shootMissile = true;
+
+        if (!this.touchControl.active) return;
 
         // Calculate drag distances
         const dx = this.touchControl.currentX - this.touchControl.startX;
         const dy = this.touchControl.currentY - this.touchControl.startY;
 
-        // Convert drag to control inputs
-        this.input.turnLeft = dx < -20;
-        this.input.turnRight = dx > 20;
-        this.input.pitchUp = dy < -20;
-        this.input.pitchDown = dy > 20;
-
-        // Auto-throttle and auto-fire for mobile
-        this.input.throttleUp = true;
-        this.input.throttleDown = false;
-        this.input.shootMissile = true;
+        // More sensitive touch controls
+        const sensitivity = 10; // Adjust this value to make controls more/less sensitive
+        this.input.turnLeft = dx < -sensitivity;
+        this.input.turnRight = dx > sensitivity;
+        this.input.pitchUp = dy < -sensitivity;
+        this.input.pitchDown = dy > sensitivity;
     }
 
     updateHUD() {
@@ -199,7 +218,9 @@ class PlaneSimulator {
         if (this.isMobile) {
             hud.innerHTML = `Score: ${this.score}
 
-Touch and drag to steer`;
+Touch and drag anywhere to steer
+Auto-firing enabled`;
+            hud.style.fontSize = '24px'; // Larger text for mobile
         } else {
             hud.innerHTML = `Score: ${this.score}
 
