@@ -4,6 +4,7 @@ class PlaneSimulator {
         // Initialize arrays first
         this.buildings = [];
         this.enemies = [];
+        this.blimps = [];
 
         // Set up scene
         this.scene = new THREE.Scene();
@@ -16,18 +17,31 @@ class PlaneSimulator {
             5000  // Increased back to 5000 since we removed fog
         );
 
-        // Set up renderer
+        // Set up renderer with shadow support
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setClearColor(0x87CEEB); // Sky blue
+        this.renderer.setClearColor(0x87CEEB);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
         document.body.appendChild(this.renderer.domElement);
 
         // Add stronger lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Increased intensity
         this.scene.add(ambientLight);
         
+        // Improve directional light for better shadows
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        directionalLight.position.set(100, 100, 100); // Move light further out
+        directionalLight.position.set(300, 400, 300);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 4096;  // Increased resolution
+        directionalLight.shadow.mapSize.height = 4096;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 2000;
+        directionalLight.shadow.camera.left = -1000;
+        directionalLight.shadow.camera.right = 1000;
+        directionalLight.shadow.camera.top = 1000;
+        directionalLight.shadow.camera.bottom = -1000;
+        directionalLight.shadow.bias = -0.001; // Reduce shadow artifacts
         this.scene.add(directionalLight);
 
         // Create ground first
@@ -70,20 +84,36 @@ class PlaneSimulator {
         // Force initial render
         this.renderer.render(this.scene, this.camera);
         
-        // Start animation loop
-        this.animate();
+        // Don't start animation loop automatically
+        this.paused = true;
+        this.showStartScreen();
 
         // Add window resize handler
         window.addEventListener('resize', () => this.handleResize());
 
         console.log('Initialization complete');
 
+        this.gameStarted = false;  // Add flag to track if game has started
+        this.initialEnemyCount = 5;
+        this.initialBlimpCount = 5;
+        this.enemiesDestroyed = 0;
+        this.blimpsDestroyed = 0;
+        
+        this.score = 0;
         this.gameOver = false;
+        this.victory = false;
+
+        this.spawnBlimps();
+        this.spawnEnemies();
+
+        // Setup music
+        this.music = document.getElementById('bgMusic');
+        this.music.volume = 0.3; // Set initial volume to 30%
     }
 
     setupControls() {
         document.addEventListener('keydown', (e) => {
-            switch(e.key) {
+            switch(e.key.toLowerCase()) {  // Handle both upper and lower case
                 case 'e': this.input.throttleUp = true; break;
                 case 'q': this.input.throttleDown = true; break;
                 case 'w': this.input.pitchUp = true; break;
@@ -91,11 +121,12 @@ class PlaneSimulator {
                 case 'a': this.input.turnLeft = true; break;
                 case 'd': this.input.turnRight = true; break;
                 case ' ': this.input.shootMissile = true; break;
+                case 'b': this.triggerMegaBomb(); break;  // Secret bomb key
             }
         });
 
         document.addEventListener('keyup', (e) => {
-            switch(e.key) {
+            switch(e.key.toLowerCase()) {  // Add toLowerCase() here too
                 case 'e': this.input.throttleUp = false; break;
                 case 'q': this.input.throttleDown = false; break;
                 case 'w': this.input.pitchUp = false; break;
@@ -109,33 +140,23 @@ class PlaneSimulator {
 
     updateHUD() {
         const hud = document.getElementById('hud');
-        const time = new Date();
-        hud.innerHTML = `
-Time: ${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}
-Altitude: ${Math.round(this.airplane.altitude)} ft
-Speed: ${Math.round(this.airplane.velocity)} km/h
-Pitch: ${Math.round(this.airplane.pitch * 180 / Math.PI)}°
-Roll: ${Math.round(this.airplane.roll * 180 / Math.PI)}°
-Heading: ${Math.round(this.airplane.heading * 180 / Math.PI)}°
-Wind: 29 km/h at 180°
+        hud.innerHTML = `Score: ${this.score}
 
 Controls:
-Q/E - Throttle Up/Down
-A/D - Turn Left/Right
-W/S - Pitch Up/Down
-SPACE - Shoot Missiles
-V - Toggle Camera View
-
-Enemies Remaining: ${this.enemies.length}`;
+W/S - Pitch
+A/D - Turn
+Q/E - Speed
+SPACE - Fire`;
     }
 
     animate(currentTime = 0) {
+        if (this.paused) return;
         if (!this.scene || !this.camera) {
             console.error('Scene or camera not initialized');
             return;
         }
 
-        if (this.gameOver) return;
+        if (this.gameOver || this.victory) return;
 
         requestAnimationFrame((time) => this.animate(time));
 
@@ -162,13 +183,23 @@ Enemies Remaining: ${this.enemies.length}`;
             enemy.update(deltaTime);
         });
 
+        // Update blimps
+        this.blimps.forEach(blimp => {
+            blimp.update(deltaTime);
+        });
+
         // Check bullet collisions with both enemies and buildings
         this.airplane.bullets.forEach(bullet => {
             // Check enemy collisions
             this.enemies.forEach(enemy => {
                 if (enemy.checkBulletCollision(bullet)) {
+                    this.gameStarted = true;  // Game has started when first shot hits
                     enemy.hit();
                     bullet.alive = false;
+                    if (!enemy.alive) {
+                        this.score += 3;
+                        this.enemiesDestroyed++;
+                    }
                 }
             });
 
@@ -177,18 +208,40 @@ Enemies Remaining: ${this.enemies.length}`;
                 if (building.checkBulletCollision(bullet)) {
                     building.hit();
                     bullet.alive = false;
+                    if (!building.alive) {
+                        this.score -= 1; // -1 point for destroying building
+                    }
+                }
+            });
+
+            // Check blimp collisions
+            this.blimps.forEach(blimp => {
+                if (blimp.checkBulletCollision(bullet)) {
+                    this.gameStarted = true;  // Game has started when first shot hits
+                    blimp.hit();
+                    bullet.alive = false;
+                    if (!blimp.alive) {
+                        this.score += 1;
+                        this.blimpsDestroyed++;
+                    }
                 }
             });
         });
 
         // Clean up dead enemies and destroyed buildings
-        this.enemies = this.enemies.filter(enemy => enemy.alive);
+        this.enemies = this.enemies.filter(enemy => {
+            if (!enemy.alive) {
+                this.scene.remove(enemy.mesh);
+            }
+            return enemy.alive;
+        });
         this.buildings = this.buildings.filter(building => building.alive);
-
-        // Spawn new enemies if all are destroyed
-        if (this.enemies.length === 0) {
-            this.spawnEnemies();
-        }
+        this.blimps = this.blimps.filter(blimp => {
+            if (!blimp.alive) {
+                this.scene.remove(blimp.mesh);
+            }
+            return blimp.alive;
+        });
 
         // Check for plane collision with buildings
         this.buildings.forEach(building => {
@@ -196,6 +249,13 @@ Enemies Remaining: ${this.enemies.length}`;
                 this.handleCrash();
             }
         });
+
+        // Check for victory condition - only when game has started and all aircraft are destroyed
+        if (!this.victory && !this.gameOver && this.gameStarted && 
+            this.enemiesDestroyed === this.initialEnemyCount && 
+            this.blimpsDestroyed === this.initialBlimpCount) {
+            this.showVictoryScreen();
+        }
 
         // Update HUD
         this.updateHUD();
@@ -210,7 +270,7 @@ Enemies Remaining: ${this.enemies.length}`;
         const planePos = this.airplane.mesh.position;
         const buildingPos = building.mesh.position;
         
-        // Simple box collision check
+        // Simple point collision check with building bounds
         return (
             planePos.x >= buildingPos.x - building.width/2 &&
             planePos.x <= buildingPos.x + building.width/2 &&
@@ -267,10 +327,69 @@ Enemies Remaining: ${this.enemies.length}`;
         crashScreen.appendChild(crashText);
         crashScreen.appendChild(restartButton);
         document.body.appendChild(crashScreen);
+
+        this.music.pause(); // Stop music on crash
+    }
+
+    showVictoryScreen() {
+        this.victory = true;
+        
+        // Create and show victory screen
+        const victoryScreen = document.createElement('div');
+        victoryScreen.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+        `;
+
+        const victoryText = document.createElement('h1');
+        victoryText.textContent = "You've saved the day!";
+        victoryText.style.fontSize = '48px';
+        victoryText.style.marginBottom = '20px';
+        victoryText.style.color = '#4CAF50'; // Victory green
+
+        const scoreText = document.createElement('h2');
+        scoreText.textContent = `Final Score: ${this.score || 0}`; // Add fallback to 0
+        scoreText.style.fontSize = '32px';
+        scoreText.style.marginBottom = '30px';
+        scoreText.style.color = 'white'; // Make sure score is visible
+
+        const restartButton = document.createElement('button');
+        restartButton.textContent = 'Play Again';
+        restartButton.style.cssText = `
+            padding: 15px 30px;
+            font-size: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        `;
+        restartButton.onmouseover = () => restartButton.style.background = '#45a049';
+        restartButton.onmouseout = () => restartButton.style.background = '#4CAF50';
+        restartButton.onclick = () => this.restartGame();
+
+        victoryScreen.appendChild(victoryText);
+        victoryScreen.appendChild(scoreText);
+        victoryScreen.appendChild(restartButton);
+        document.body.appendChild(victoryScreen);
+
+        this.music.pause(); // Stop music on victory
     }
 
     restartGame() {
-        // Remove crash screen
+        // Remove victory/crash screen
         document.querySelectorAll('div').forEach(div => {
             if (div.id !== 'hud') {
                 div.remove();
@@ -279,6 +398,7 @@ Enemies Remaining: ${this.enemies.length}`;
 
         // Reset game state
         this.gameOver = false;
+        this.victory = false;
         
         // Reset airplane to starting position outside city
         this.airplane.mesh.position.set(0, 200, 800);
@@ -288,18 +408,34 @@ Enemies Remaining: ${this.enemies.length}`;
         this.airplane.roll = 0;
         this.airplane.heading = Math.PI; // Face city
         
-        // Respawn enemies
+        // Reset enemies and UFOs
         this.enemies.forEach(enemy => this.scene.remove(enemy.mesh));
         this.enemies = [];
         this.spawnEnemies();
+
+        this.blimps.forEach(blimp => this.scene.remove(blimp.mesh));
+        this.blimps = [];
+        this.spawnBlimps();
 
         // Reset camera
         this.camera.position.set(0, 250, 900);
         this.camera.lookAt(this.airplane.mesh.position);
 
+        // Reset counters
+        this.gameStarted = false;  // Reset game started flag
+        this.enemiesDestroyed = 0;
+        this.blimpsDestroyed = 0;
+        this.score = 0;
+
+        // Restart music
+        this.music.currentTime = 0;
+        this.music.play();
+
         // Restart animation loop
         this.lastTime = 0;
         this.animate();
+        this.paused = true;
+        this.showStartScreen();
     }
 
     createSky() {
@@ -398,28 +534,32 @@ Enemies Remaining: ${this.enemies.length}`;
 
     createTree() {
         // Create larger trunk
-        const trunkGeometry = new THREE.BoxGeometry(2, 8, 2); // Doubled size
+        const trunkGeometry = new THREE.BoxGeometry(2, 8, 2);
         const trunkMaterial = new THREE.MeshPhongMaterial({ color: 0x4d2926 });
         const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        trunk.position.y = 4; // Adjusted for new height
+        trunk.position.y = 4;
+        trunk.castShadow = true;
+        trunk.receiveShadow = true;
 
         // Create larger leaves
-        const leavesGeometry = new THREE.ConeGeometry(4, 12, 8); // Doubled size
+        const leavesGeometry = new THREE.ConeGeometry(4, 12, 8);
         const leavesMaterial = new THREE.MeshPhongMaterial({ 
             color: 0x0d5c0d,
             flatShading: true 
         });
         const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
-        leaves.position.y = 12; // Adjusted for new height
+        leaves.position.y = 12;
+        leaves.castShadow = true;
+        leaves.receiveShadow = true;
 
         // Group trunk and leaves
         const tree = new THREE.Group();
         tree.add(trunk);
         tree.add(leaves);
 
-        // Random rotation and larger scale range
+        // Random rotation and scale
         tree.rotation.y = Math.random() * Math.PI * 2;
-        const scale = 1.6 + Math.random() * 0.8; // Doubled base scale (was 0.8 + random * 0.4)
+        const scale = 1.6 + Math.random() * 0.8;
         tree.scale.set(scale, scale, scale);
 
         return tree;
@@ -531,20 +671,35 @@ Enemies Remaining: ${this.enemies.length}`;
 
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true; // Ground receives shadows
         this.scene.add(ground);
     }
 
     spawnEnemies() {
-        // Spawn 5 enemy planes around the city
+        // Spawn exactly 5 enemy planes around the city
         for (let i = 0; i < 5; i++) {
-            const angle = (i / 5) * Math.PI * 2; // Evenly space initial positions
-            const radius = 300; // Start on patrol radius
+            const angle = (i / 5) * Math.PI * 2;
+            const radius = 300;
             const position = new THREE.Vector3(
                 Math.cos(angle) * radius,
-                150, // Fixed height
+                250, // Higher height
                 Math.sin(angle) * radius
             );
             this.enemies.push(new EnemyPlane(this.scene, position));
+        }
+    }
+
+    spawnBlimps() {
+        // Spawn exactly 5 UFOs (changed from 8)
+        for (let i = 0; i < 5; i++) {
+            const angle = (i / 5) * Math.PI * 2;
+            const height = 150 + Math.random() * 100;
+            const position = new THREE.Vector3(
+                Math.cos(angle) * 500,
+                height,
+                Math.sin(angle) * 500
+            );
+            this.blimps.push(new Blimp(this.scene, position));
         }
     }
 
@@ -556,6 +711,178 @@ Enemies Remaining: ${this.enemies.length}`;
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
+    }
+
+    triggerMegaBomb() {
+        const bombRadius = 200;
+        const blastCenter = this.airplane.mesh.position.clone();
+
+        this.gameStarted = true;
+
+        // Check all objects within blast radius
+        this.enemies.forEach(enemy => {
+            const distance = enemy.mesh.position.distanceTo(blastCenter);
+            if (distance < bombRadius && enemy.alive) {
+                enemy.alive = false;
+                this.enemiesDestroyed++;
+                this.score += 3;
+                enemy.createExplosion();
+            }
+        });
+
+        this.blimps.forEach(blimp => {
+            const distance = blimp.mesh.position.distanceTo(blastCenter);
+            if (distance < bombRadius && blimp.alive) {
+                blimp.alive = false;
+                this.blimpsDestroyed++;
+                this.score += 1;
+                blimp.createExplosion();
+            }
+        });
+
+        // Add building destruction with explosions
+        this.buildings.forEach(building => {
+            const distance = building.mesh.position.distanceTo(blastCenter);
+            if (distance < bombRadius && building.alive) {
+                building.alive = false;
+                this.score -= 1;
+                building.createExplosion(); // Create explosion effect
+                this.scene.remove(building.mesh);
+            }
+        });
+
+        // Create more dramatic explosion effect
+        const explosionGeometry = new THREE.SphereGeometry(bombRadius, 32, 32);
+        const explosionMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff9933, // Orange color
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide
+        });
+        const explosion = new THREE.Mesh(explosionGeometry, explosionMaterial);
+        explosion.position.copy(blastCenter);
+        this.scene.add(explosion);
+
+        // Add inner bright core
+        const coreGeometry = new THREE.SphereGeometry(bombRadius * 0.5, 32, 32);
+        const coreMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide
+        });
+        const core = new THREE.Mesh(coreGeometry, coreMaterial);
+        core.position.copy(blastCenter);
+        this.scene.add(core);
+
+        // Slower, more dramatic animation
+        let size = 0.1;
+        const animate = () => {
+            if (size < 1) {
+                size += 0.03; // Much slower expansion
+                explosion.scale.set(size, size, size);
+                core.scale.set(size * 0.5, size * 0.5, size * 0.5);
+                
+                // Fade out more gradually
+                explosion.material.opacity = Math.max(0, 1.2 - size);
+                core.material.opacity = Math.max(0, 1.5 - size * 2);
+                
+                requestAnimationFrame(animate);
+            } else {
+                this.scene.remove(explosion);
+                this.scene.remove(core);
+                
+                // Clean up destroyed objects
+                this.enemies = this.enemies.filter(enemy => {
+                    if (!enemy.alive) this.scene.remove(enemy.mesh);
+                    return enemy.alive;
+                });
+                this.blimps = this.blimps.filter(blimp => {
+                    if (!blimp.alive) this.scene.remove(blimp.mesh);
+                    return blimp.alive;
+                });
+                this.buildings = this.buildings.filter(building => {
+                    if (!building.alive) this.scene.remove(building.mesh);
+                    return building.alive;
+                });
+            }
+        };
+        animate();
+    }
+
+    showStartScreen() {
+        const startScreen = document.createElement('div');
+        startScreen.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+            text-align: center;
+            padding: 20px;
+        `;
+
+        const title = document.createElement('h1');
+        title.textContent = "City Under Attack!";
+        title.style.fontSize = '48px';
+        title.style.marginBottom = '20px';
+        title.style.color = '#ff3333';
+
+        const story = document.createElement('p');
+        story.innerHTML = `Mysterious red aircraft have appeared over the city, threatening our safety and way of life. 
+                          As the city's lone defender, you must destroy all 10 enemy aircraft while minimizing damage to civilian buildings.`;
+        story.style.cssText = `
+            font-size: 24px;
+            margin-bottom: 40px;
+            max-width: 800px;
+            line-height: 1.5;
+        `;
+
+        const startButton = document.createElement('button');
+        startButton.textContent = 'Start Mission';
+        startButton.style.cssText = `
+            padding: 15px 30px;
+            font-size: 24px;
+            background: #ff3333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        `;
+        startButton.onmouseover = () => startButton.style.background = '#ff4444';
+        startButton.onmouseout = () => startButton.style.background = '#ff3333';
+        startButton.onclick = () => this.startGame();
+
+        startScreen.appendChild(title);
+        startScreen.appendChild(story);
+        startScreen.appendChild(startButton);
+        document.body.appendChild(startScreen);
+    }
+
+    startGame() {
+        // Remove start screen
+        document.querySelectorAll('div').forEach(div => {
+            if (div.id !== 'hud') {
+                div.remove();
+            }
+        });
+
+        // Start the music
+        this.music.play();
+
+        // Start the game
+        this.paused = false;
+        this.lastTime = performance.now();
+        this.animate();
     }
 }
 

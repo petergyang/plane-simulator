@@ -1,14 +1,21 @@
 class EnemyPlane {
     constructor(scene, position) {
         // Create larger enemy plane mesh (4x size)
+        const addShadows = (mesh) => {
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+        };
+
         const bodyGeometry = new THREE.BoxGeometry(4, 4, 16);
         const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
         this.mesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        addShadows(this.mesh);
         
-        // Add larger wings
+        // Add wings
         const wingGeometry = new THREE.BoxGeometry(32, 0.8, 8);
         const wingMesh = new THREE.Mesh(wingGeometry, bodyMaterial);
         wingMesh.position.y = 0.8;
+        addShadows(wingMesh);
         this.mesh.add(wingMesh);
 
         this.scene = scene; // Store scene for explosion effect
@@ -16,13 +23,15 @@ class EnemyPlane {
         this.speed = 30;
         this.heading = Math.random() * Math.PI * 2;
         this.alive = true;
-        this.health = 3;
+        this.health = 1;
         
-        // Add patrol parameters
+        // Adjust patrol parameters
         this.patrolRadius = 300;
-        this.patrolHeight = 150;
+        this.patrolHeight = 250; // Raised from 150 to 250 (between city and boss)
         this.patrolCenter = new THREE.Vector3(0, this.patrolHeight, 0);
         this.turnRate = 0.3;
+        this.directionChangeTimer = 0;
+        this.directionChangeInterval = Math.random() * 2 + 3; // Change direction every 3-5 seconds
         
         scene.add(this.mesh);
     }
@@ -89,39 +98,45 @@ class EnemyPlane {
     update(deltaTime) {
         if (!this.alive) return;
 
-        // Calculate desired position on patrol circle
-        const targetX = this.patrolCenter.x + Math.cos(this.heading) * this.patrolRadius;
-        const targetZ = this.patrolCenter.z + Math.sin(this.heading) * this.patrolRadius;
+        // Random direction changes
+        this.directionChangeTimer += deltaTime;
+        if (this.directionChangeTimer >= this.directionChangeInterval) {
+            this.turnRate = (Math.random() - 0.5) * 0.6; // Random turn rate between -0.3 and 0.3
+            this.directionChangeTimer = 0;
+            this.directionChangeInterval = Math.random() * 2 + 3; // New random interval
+        }
 
-        // Update heading more smoothly
+        // Update heading with random turns
         this.heading += this.turnRate * deltaTime;
         
+        // Calculate position with some height variation
+        const targetX = this.patrolCenter.x + Math.cos(this.heading) * this.patrolRadius;
+        const targetZ = this.patrolCenter.z + Math.sin(this.heading) * this.patrolRadius;
+        const heightVariation = Math.sin(this.heading * 0.5) * 20; // Add some wave motion to height
+
         // Move forward
         this.mesh.position.x = targetX;
         this.mesh.position.z = targetZ;
-        this.mesh.position.y = this.patrolHeight;
+        this.mesh.position.y = this.patrolHeight + heightVariation;
 
         // Update rotation
         this.mesh.rotation.y = this.heading + Math.PI / 2;
         
-        // Add slight banking in turns
-        this.mesh.rotation.z = -0.2;
+        // Bank in turns
+        this.mesh.rotation.z = -this.turnRate * 2; // Bank more dramatically in turns
     }
 
     hit() {
-        this.health--;
-        if (this.health <= 0) {
-            this.alive = false;
-            this.mesh.visible = false;
-            this.createExplosion();
-        }
+        this.alive = false;
+        this.mesh.visible = false;
+        this.createExplosion();
     }
 
     checkBulletCollision(bullet) {
         if (!this.alive) return false;
         
-        // Simple distance-based collision
+        // Simple distance-based collision with larger radius
         const distance = this.mesh.position.distanceTo(bullet.mesh.position);
-        return distance < 5; // Hit if bullet is within 5 units
+        return distance < 10; // Increased from 5 to make it easier to hit
     }
 } 

@@ -6,19 +6,23 @@
         body { margin: 0; }
         canvas { display: block; }
         #hud {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            font-family: "Courier New", monospace;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 15px;
             border-radius: 5px;
-            white-space: pre;
-            line-height: 1.5;
             font-size: 14px;
+            line-height: 1.4;
+            pointer-events: none;
+            white-space: pre;
         }
     </style>
+    <audio id="bgMusic" loop>
+        <source src="assets/music/battle.mp3" type="audio/mpeg">
+    </audio>
 </head>
 <body>
     <div id="hud"></div>
@@ -27,12 +31,9 @@
     <script src="src/models/bullet.js"></script>
     <script src="src/models/enemy.js"></script>
     <script src="src/models/building.js"></script>
+    <script src="src/models/blimp.js"></script>
     <script src="src/models/plane.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const simulator = new PlaneSimulator();
-        });
-    </script>
+    <script src="src/models/boss.js"></script>
     <script src="src/main.js"></script>
 </body>
 </html> 

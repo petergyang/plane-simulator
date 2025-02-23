@@ -67,6 +67,8 @@ class Building {
         });
 
         this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.castShadow = true;    // Buildings cast shadows
+        this.mesh.receiveShadow = true; // Buildings receive shadows from other buildings
         scene.add(this.mesh);
     }
 

@@ -14,41 +14,34 @@ class Airplane {
         this.verticalSpeed = 0;
         this.heading = 0;
 
-        // Create airplane body (fuselage)
-        const bodyGeometry = new THREE.BoxGeometry(1, 1, 4);
-        const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
-        this.mesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        this.mesh = new THREE.Group();
         
-        // Add main wings
-        const wingGeometry = new THREE.BoxGeometry(8, 0.2, 2);
-        const wingMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
-        const wingMesh = new THREE.Mesh(wingGeometry, wingMaterial);
-        wingMesh.position.set(0, 0.2, 0);
-        this.mesh.add(wingMesh);
+        // Add shadows to all plane parts
+        const addShadows = (mesh) => {
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+        };
 
-        // Add tail
-        const tailGeometry = new THREE.BoxGeometry(0.2, 1.2, 1.5);
-        const tailMesh = new THREE.Mesh(tailGeometry, bodyMaterial);
-        tailMesh.position.set(0, 0.5, -2);
-        this.mesh.add(tailMesh);
+        // Create fuselage
+        const fuselageGeometry = new THREE.BoxGeometry(2, 2, 10);
+        const fuselageMaterial = new THREE.MeshPhongMaterial({ color: 0x444444 });
+        const fuselage = new THREE.Mesh(fuselageGeometry, fuselageMaterial);
+        addShadows(fuselage);
+        this.mesh.add(fuselage);
 
-        // Add horizontal stabilizers
-        const stabilizerGeometry = new THREE.BoxGeometry(3, 0.2, 1);
-        const stabilizerMesh = new THREE.Mesh(stabilizerGeometry, wingMaterial);
-        stabilizerMesh.position.set(0, 0.5, -2);
-        this.mesh.add(stabilizerMesh);
+        // Create wings
+        const wingGeometry = new THREE.BoxGeometry(12, 0.5, 3);
+        const wingMaterial = new THREE.MeshPhongMaterial({ color: 0x444444 });
+        const wings = new THREE.Mesh(wingGeometry, wingMaterial);
+        addShadows(wings);
+        this.mesh.add(wings);
 
-        // Add engine blocks
-        const engineGeometry = new THREE.BoxGeometry(0.8, 0.8, 1);
-        const engineMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
-        
-        const engineLeft = new THREE.Mesh(engineGeometry, engineMaterial);
-        engineLeft.position.set(-2, -0.2, 0);
-        this.mesh.add(engineLeft);
-        
-        const engineRight = new THREE.Mesh(engineGeometry, engineMaterial);
-        engineRight.position.set(2, -0.2, 0);
-        this.mesh.add(engineRight);
+        // Create tail
+        const tailGeometry = new THREE.BoxGeometry(4, 2, 1);
+        const tail = new THREE.Mesh(tailGeometry, wingMaterial);
+        tail.position.z = -4;
+        addShadows(tail);
+        this.mesh.add(tail);
 
         this.mesh.position.y = this.altitude;
         scene.add(this.mesh);
