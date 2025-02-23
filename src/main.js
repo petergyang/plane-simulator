@@ -183,9 +183,10 @@ class PlaneSimulator {
     updateMobileControls() {
         if (!this.isMobile) return;
 
-        // ALWAYS auto-fire and maintain speed on mobile, regardless of touch state
-        this.input.throttleUp = true;
-        this.input.throttleDown = false;
+        // Set constant speed (same as desktop default)
+        this.airplane.velocity = 100;
+        
+        // Always auto-fire on mobile
         this.input.shootMissile = true;
 
         if (!this.touchControl.active) {
@@ -201,16 +202,22 @@ class PlaneSimulator {
         const dx = this.touchControl.currentX - this.touchControl.startX;
         const dy = this.touchControl.currentY - this.touchControl.startY;
 
-        // More sensitive touch controls
-        const sensitivity = 2; // Even more sensitive
+        // More responsive touch controls
+        const sensitivity = 1; // Increased sensitivity (was 2)
+        
+        // Use relative movement for smoother control
         this.input.turnLeft = dx < -sensitivity;
         this.input.turnRight = dx > sensitivity;
         this.input.pitchUp = dy < -sensitivity;
         this.input.pitchDown = dy > sensitivity;
 
-        // Continuously update start position for smoother control
+        // Update reference position for next frame
         this.touchControl.startX = this.touchControl.currentX;
         this.touchControl.startY = this.touchControl.currentY;
+
+        // Don't use throttle controls on mobile
+        this.input.throttleUp = false;
+        this.input.throttleDown = false;
     }
 
     updateHUD() {
