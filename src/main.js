@@ -212,8 +212,8 @@ class PlaneSimulator {
         }
 
         // Calculate drag distance since last frame
-        const dx = this.touchControl.currentX - this.touchControl.startX;
-        const dy = this.touchControl.currentY - this.touchControl.startY;
+        const dx = (this.touchControl.currentX - this.touchControl.startX) * 0.5; // Halved sensitivity
+        const dy = (this.touchControl.currentY - this.touchControl.startY) * 0.5; // Halved sensitivity
 
         // Detect movement direction when drag distance exceeds threshold
         const sensitivity = 3;
