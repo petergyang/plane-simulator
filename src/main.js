@@ -6,13 +6,19 @@ class PlaneSimulator {
         this.isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         console.log('Device detected as:', this.isMobile ? 'Mobile' : 'Desktop');
 
-        // Touch control state
+        // Enhanced touch control state
         this.touchControl = {
             active: false,
             startX: 0,
             startY: 0,
             currentX: 0,
-            currentY: 0
+            currentY: 0,
+            direction: {
+                turnLeft: false,
+                turnRight: false,
+                pitchUp: false,
+                pitchDown: false
+            }
         };
 
         // Initialize arrays first
@@ -190,33 +196,41 @@ class PlaneSimulator {
         this.input.throttleDown = false;
 
         if (!this.touchControl.active) {
-            // Reset steering controls when not touching
+            // Reset all controls when not touching
             this.input.turnLeft = false;
             this.input.turnRight = false;
             this.input.pitchUp = false;
             this.input.pitchDown = false;
+            // Reset stored directions
+            this.touchControl.direction = {
+                turnLeft: false,
+                turnRight: false,
+                pitchUp: false,
+                pitchDown: false
+            };
             return;
         }
 
-        // Get screen dimensions
-        const screenWidth = window.innerWidth;
-        const screenHeight = window.innerHeight;
+        // Calculate drag distance since last frame
+        const dx = this.touchControl.currentX - this.touchControl.startX;
+        const dy = this.touchControl.currentY - this.touchControl.startY;
 
-        // Define screen regions (in percentages)
-        const leftRegion = screenWidth * 0.3;
-        const rightRegion = screenWidth * 0.7;
-        const topRegion = screenHeight * 0.3;
-        const bottomRegion = screenHeight * 0.7;
+        // Detect movement direction when drag distance exceeds threshold
+        const sensitivity = 3;
+        if (Math.abs(dx) > sensitivity) {
+            this.touchControl.direction.turnLeft = dx < 0;
+            this.touchControl.direction.turnRight = dx > 0;
+        }
+        if (Math.abs(dy) > sensitivity) {
+            this.touchControl.direction.pitchUp = dy < 0;
+            this.touchControl.direction.pitchDown = dy > 0;
+        }
 
-        // Get current touch position
-        const touchX = this.touchControl.currentX;
-        const touchY = this.touchControl.currentY;
-
-        // Set controls based on touch position
-        this.input.turnLeft = touchX < leftRegion;
-        this.input.turnRight = touchX > rightRegion;
-        this.input.pitchUp = touchY < topRegion;
-        this.input.pitchDown = touchY > bottomRegion;
+        // Apply stored directions to input
+        this.input.turnLeft = this.touchControl.direction.turnLeft;
+        this.input.turnRight = this.touchControl.direction.turnRight;
+        this.input.pitchUp = this.touchControl.direction.pitchUp;
+        this.input.pitchDown = this.touchControl.direction.pitchDown;
     }
 
     updateHUD() {
