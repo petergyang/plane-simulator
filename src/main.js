@@ -75,14 +75,35 @@ class PlaneSimulator {
         // Create player airplane last, starting outside city facing inward
         this.airplane = new Airplane(this.scene);
         
+        // Add spawn position constants
+        this.SPAWN_POSITION = {
+            x: 0,
+            y: 200,
+            z: 800
+        };
+        this.SPAWN_CAMERA_OFFSET = {
+            x: 0,
+            y: 250,
+            z: 900
+        };
+
         // Start 800 units south of city center
-        this.airplane.mesh.position.set(0, 200, 800);
+        this.airplane.mesh.position.set(
+            this.SPAWN_POSITION.x,
+            this.SPAWN_POSITION.y, 
+            this.SPAWN_POSITION.z
+        );
         // Set initial heading to face the city (north)
         this.airplane.heading = Math.PI;
         
         // Set up initial camera position behind plane
-        this.camera.position.set(0, 250, 900);
+        this.camera.position.set(
+            this.SPAWN_CAMERA_OFFSET.x,
+            this.SPAWN_CAMERA_OFFSET.y,
+            this.SPAWN_CAMERA_OFFSET.z
+        );
         this.camera.lookAt(this.airplane.mesh.position);
+
 
         // Input state
         this.input = {
@@ -158,29 +179,29 @@ class PlaneSimulator {
             });
 
         } else {
-            // Existing keyboard controls
+            // Keyboard controls using key codes
             document.addEventListener('keydown', (e) => {
-                switch(e.key.toLowerCase()) {
-                    case 'e': this.input.throttleUp = true; break;
-                    case 'q': this.input.throttleDown = true; break;
-                    case 'w': this.input.pitchUp = true; break;
-                    case 's': this.input.pitchDown = true; break;
-                    case 'a': this.input.turnLeft = true; break;
-                    case 'd': this.input.turnRight = true; break;
-                    case ' ': this.input.shootMissile = true; break;
-                    case 'b': this.triggerMegaBomb(); break;
+                switch(e.code) {
+                    case 'KeyE': this.input.throttleUp = true; break;
+                    case 'KeyQ': this.input.throttleDown = true; break;
+                    case 'KeyW': this.input.pitchUp = true; break;
+                    case 'KeyS': this.input.pitchDown = true; break;
+                    case 'KeyA': this.input.turnLeft = true; break;
+                    case 'KeyD': this.input.turnRight = true; break;
+                    case 'Space': this.input.shootMissile = true; break;
+                    case 'KeyB': this.triggerMegaBomb(); break;
                 }
             });
 
             document.addEventListener('keyup', (e) => {
-                switch(e.key.toLowerCase()) {
-                    case 'e': this.input.throttleUp = false; break;
-                    case 'q': this.input.throttleDown = false; break;
-                    case 'w': this.input.pitchUp = false; break;
-                    case 's': this.input.pitchDown = false; break;
-                    case 'a': this.input.turnLeft = false; break;
-                    case 'd': this.input.turnRight = false; break;
-                    case ' ': this.input.shootMissile = false; break;
+                switch(e.code) {
+                    case 'KeyE': this.input.throttleUp = false; break;
+                    case 'KeyQ': this.input.throttleDown = false; break;
+                    case 'KeyW': this.input.pitchUp = false; break;
+                    case 'KeyS': this.input.pitchDown = false; break;
+                    case 'KeyA': this.input.turnLeft = false; break;
+                    case 'KeyD': this.input.turnRight = false; break;
+                    case 'Space': this.input.shootMissile = false; break;
                 }
             });
         }
@@ -992,15 +1013,64 @@ SPACE - Fire`;
             }
         });
 
+        // Stop any ongoing animation
+        this.paused = true;
+        
+        // Reset game state
+        this.gameOver = false;
+        this.victory = false;
+        this.gameStarted = false;
+        
+        // Reset airplane to initial spawn position
+        const SPAWN_POS = {
+            x: 0,
+            y: 200,
+            z: 800  // Changed back to original spawn distance
+        };
+
+        // Force reset airplane position and properties
+        this.airplane.mesh.position.set(
+            SPAWN_POS.x,
+            SPAWN_POS.y,
+            SPAWN_POS.z
+        );
+        
+        // Reset airplane properties
+        Object.assign(this.airplane, {
+            velocity: 0,
+            altitude: SPAWN_POS.y,
+            pitch: 0,
+            roll: 0,
+            heading: Math.PI,
+            lastPosition: new THREE.Vector3(SPAWN_POS.x, SPAWN_POS.y, SPAWN_POS.z)  // Add this
+        });
+
+        // Reset camera
+        this.camera.position.set(0, 250, 900);
+        this.camera.lookAt(this.airplane.mesh.position);
+
+        // Force a single render to show the new position
+        this.renderer.render(this.scene, this.camera);
+
         // Start the music
         this.music.play();
 
-        // Start the game
-        this.paused = false;
+
+        // Start the game with proper initialization
         this.lastTime = performance.now();
-        this.animate();
+        
+        // Start animation with correct velocity
+        setTimeout(() => {
+            this.airplane.velocity = 100;
+            this.paused = false;
+            
+            requestAnimationFrame((time) => {
+                this.lastTime = time;
+                this.animate(time);
+            });
+        }, 100);
     }
 }
 
 // Start the simulator
-const simulator = new PlaneSimulator(); 
+const simulator = new PlaneSimulator();
