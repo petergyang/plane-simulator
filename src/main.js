@@ -104,8 +104,6 @@ class PlaneSimulator {
         );
         this.camera.lookAt(this.airplane.mesh.position);
 
-        console.log('Plane position:', this.airplane.mesh.position);
-        console.log('Camera position:', this.camera.position);
 
         // Input state
         this.input = {
@@ -1057,8 +1055,6 @@ SPACE - Fire`;
         // Start the music
         this.music.play();
 
-        // Log initial position
-        console.log('Initial position:', this.airplane.mesh.position.toArray());
 
         // Start the game with proper initialization
         this.lastTime = performance.now();
@@ -1067,9 +1063,6 @@ SPACE - Fire`;
         setTimeout(() => {
             this.airplane.velocity = 100;
             this.paused = false;
-            
-            // Log position before animation
-            console.log('Position before animation:', this.airplane.mesh.position.toArray());
             
             requestAnimationFrame((time) => {
                 this.lastTime = time;
